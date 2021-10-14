@@ -13,6 +13,8 @@ const G = {
   DRAG: 0.01,
 
   MAX_BALL_VELOCITY: 5,
+
+  LEVELSIZE: 10
 }
 
 options = {
@@ -22,16 +24,16 @@ options = {
 
 let lvl1 = 
 `
-000000XXXX
-0G0000XXXX
-XXX000000X
-XXXX000000
-X00XXXX000
-X000000000
-XXXX00XX00
-000000X000
-0S0X00X00X
-000X0000XX
+000V00HHHH
+0S0000HHHH
+HHH000000V
+VVVV000000
+V00VVVV000
+V000000000
+VVVV00VV00
+000000V000
+0G0V00V00V
+0V0VHHHHHV
 `;
 
 /**
@@ -42,8 +44,97 @@ XXXX00XX00
  * }} Bullet
  */
 
-/**@type { Bullet } */
+/** @type { Bullet } */
 let bullet;
+
+/**
+ * @typedef {{
+ * start: Vector,
+ * end: Vector
+ * }} Line
+ */
+
+/** @type { Line[] } */
+let lines;
+
+// H = horizontal wall
+// V = vertical wall
+// 0 = nothing
+// S = start
+// G = goal
+let goal;
+
+//newline character is counted
+  //so always levelsize + 1
+//start at 1 to ignore first newline character
+function interpretLevel(input) {
+  var currPos = vec(0,0);
+  createOutline();
+  for (let i = 1; i < (G.LEVELSIZE * G.LEVELSIZE) + G.LEVELSIZE; i++) {
+    console.log(`Current Position X: ${currPos.x}, Current Position Y: ${currPos.y}`);
+    switch (input[i]) {
+      case 'H':
+        lines.push({
+          start: vec(currPos.x, currPos.y),
+          end: vec(currPos.x + 20, currPos.y)
+        });
+        break;
+      case 'V':
+        lines.push({
+          start: vec(currPos.x + 20, currPos.y),
+          end: vec(currPos.x + 20, currPos.y + 20)
+        });
+        break;
+      case '0':
+        console.log("nothing");
+        break;
+      case 'S':
+        console.log("start");
+        break;
+      case 'G':
+        console.log("rect draw");
+        color("yellow");
+        goal = vec(currPos);
+        break;
+      case '\n':
+        currPos.x = 0;
+        currPos.y += 20;
+        break;
+      default:
+        console.log("mistake");
+        break;
+    }
+    //prepare for next character
+    if (input[i] != '\n') 
+      currPos.x += 20;
+  }
+}
+
+
+//talk with finn if this should go in with lines
+  //also talk with finn on whether or not there should be an outline (seems good to have as a baseline for each level)
+function createOutline() {
+  //top
+  lines.push({
+    start: vec(0, 0),
+    end: vec(200, 0)
+  });
+  //right
+  lines.push({
+    start: vec(200, 0),
+    end: vec(200, 200)
+  });
+  //left
+  lines.push({
+    start: vec(0, 0),
+    end: vec(0, 200)
+  });
+  //bottom
+  lines.push({
+    start: vec(0, 200),
+    end: vec(200, 200)
+  });
+}
 
 function levelLine(x1, y1, x2, y2) {
   return {
@@ -77,6 +168,12 @@ let currentLevel;
 
 function update() {
   if (!ticks) {
+
+    lines = [];
+    interpretLevel(lvl1);
+
+    createOutline();
+
     // set starting values
     currentLevel = levels.one
 
@@ -91,21 +188,28 @@ function update() {
 
   // draw the level
   color("blue");
-  currentLevel.forEach(l => {
-    line(l.p1.x * 20, l.p1.y * 20, l.p2.x * 20, l.p2.y * 20, 2);
+  // currentLevel.forEach(l => {
+  //   line(l.p1.x * 20, l.p1.y * 20, l.p2.x * 20, l.p2.y * 20, 2);
+  // });
+
+  lines.forEach(l => {
+    line(l.start, l.end, 2);
   });
+
+  color("red");
+  rect(goal, 10);
 
   // copy the bullet velocity in case it has to be changed in the case of a collision
   let newVelocity = vec(bullet.velocity);
   // check for a collision with any of the lines
-  for(let i = 0; i < currentLevel.length; i++){
+  for(let i = 0; i < lines.length; i++){
     // get current line
-    let l = currentLevel[i];
+    let l = lines[i];
 
     // check for collision
     let collision = LineLine(
       bullet.pos.x, bullet.pos.y, bullet.nextPos.x, bullet.nextPos.y,
-      l.p1.x * 20,  l.p1.y * 20,  l.p2.x * 20,      l.p2.y * 20
+      l.start.x,    l.start.y,    l.end.x,          l.end.y
     );
     
     // if there is a collision
@@ -116,9 +220,9 @@ function update() {
       newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
 
       // flip velocity based on line type
-      if (l.p1.x == l.p2.x) { // vertical line
+      if (l.start.x == l.end.x) { // vertical line
         bullet.velocity.x *= -1;
-      } else if (l.p1.y == l.p2.y) { // horizontal line
+      } else if (l.start.y == l.end.y) { // horizontal line
         bullet.velocity.y *= -1;
       }
 
