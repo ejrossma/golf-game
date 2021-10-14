@@ -20,6 +20,7 @@ const G = {
 options = {
   viewSize: {x: G.WIDTH, y: G.HEIGHT},
   theme: "shapeDark",
+  isPlayingBgm: true
 };
 
 let lvl1 = 
@@ -71,7 +72,6 @@ function interpretLevel(input) {
   var currPos = vec(0,0);
   createOutline();
   for (let i = 1; i < (G.LEVELSIZE * G.LEVELSIZE) + G.LEVELSIZE; i++) {
-    console.log(`Current Position X: ${currPos.x}, Current Position Y: ${currPos.y}`);
     switch (input[i]) {
       case 'H':
         lines.push({
@@ -85,14 +85,11 @@ function interpretLevel(input) {
           end: vec(currPos.x + 20, currPos.y + 20)
         });
         break;
-      case '0':
-        console.log("nothing");
-        break;
       case 'S':
-        console.log("start");
+        //this is where the player spawns
+        //still have to code this
         break;
       case 'G':
-        console.log("rect draw");
         color("yellow");
         goal = vec(currPos);
         break;
@@ -101,7 +98,6 @@ function interpretLevel(input) {
         currPos.y += 20;
         break;
       default:
-        console.log("mistake");
         break;
     }
     //prepare for next character
@@ -136,34 +132,6 @@ function createOutline() {
   });
 }
 
-function levelLine(x1, y1, x2, y2) {
-  return {
-    p1: vec(x1, y1),
-    p2: vec(x2, y2)
-  }
-}
-
-let levels = {
-  one: [
-    levelLine(0,0,6,0),
-    levelLine(6,0,6,2),
-    levelLine(6,2,9,2),
-    levelLine(9,2,9,3),
-    levelLine(9,3,10,3),
-    levelLine(10,3,10,8),
-    levelLine(10,8,9,8),
-    levelLine(9,8,9,9),
-    levelLine(9,9,8,9),
-    levelLine(8,9,8,10),
-    levelLine(0,10,3,10),
-    levelLine(3,8,3,10),
-    levelLine(0,0,0,10),
-    levelLine(3,8,4,8),
-    levelLine(4,8,4,10),
-    levelLine(4,10,8,10)
-  ]
-}
-
 let currentLevel;
 
 function update() {
@@ -173,9 +141,6 @@ function update() {
     interpretLevel(lvl1);
 
     createOutline();
-
-    // set starting values
-    currentLevel = levels.one
 
     bullet = {
       pos: vec(20, 20),
