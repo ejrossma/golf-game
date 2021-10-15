@@ -14,7 +14,7 @@ const G = {
   GRAVITY: 9.8 / 60,
   DRAG: 0.01,
 
-  MAX_BALL_VELOCITY: 4.33333,
+  MAX_BALL_VELOCITY: 2,
 
   LEVELSIZE: 10
 }
