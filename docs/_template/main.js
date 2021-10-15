@@ -1,13 +1,8 @@
-title = "Shooting Stars";
+title = "CyberBullet";
 
 description = `
-      DIRECT YOUR STAR 
-
-   TO THE GLOWING PORTALS
-
-
-
-PULL BACK & RELEASE TO START
+[Click/Hold]
+Pull back on bullet!
 `;
 
 characters = [];
@@ -19,7 +14,7 @@ const G = {
   GRAVITY: 9.8 / 60,
   DRAG: 0.01,
 
-  MAX_BALL_VELOCITY: 5,
+  MAX_BALL_VELOCITY: 4.33333,
 
   LEVELSIZE: 10
 }
@@ -32,7 +27,6 @@ options = {
 
 let bulletStartPos;
 let goalPos;
-
 
 /* Level Concepts
   Rules Level - Have to intentionally miss to not get in 0 bounces
@@ -99,10 +93,16 @@ XXXXXXXXXX
 `
 ]
 
+const STATE = {
+  WAITING: 0,
+  FREE: 1,
+}
+
 /**
  * @typedef {{
  * pos: Vector,
  * velocity: Vector,
+ * state: number,
  * get nextPos(): Vector
  * }} Bullet
  */
@@ -114,17 +114,21 @@ let levelIndex;
 
 let currentLevel;
 
+let readyForLaunch;
+
 function update() {
   if (!ticks) {
 
     levelIndex = 2;
+    readyForLaunch = false;
 
     currentLevel = constructLevel(levels[levelIndex]);
     createBorder(currentLevel);
 
     bullet = {
       pos: vec(bulletStartPos.x, bulletStartPos.y),
-      velocity: vec(1,0.5),
+      velocity: vec(0,0),
+      state: STATE.WAITING,
       get nextPos() {
         return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
       }
@@ -139,13 +143,33 @@ function update() {
     line(l.p1, l.p2, 2);
   });
 
+  // check for player input
+  if (bullet.state == STATE.WAITING) {
+    if (input.isJustPressed) {
+      readyForLaunch = true;
+    }
+
+    if (input.isPressed && !input.pos.equals(bullet.pos) && readyForLaunch) {
+      color("red");
+      let endPoint = vec(-(input.pos.x - bullet.pos.x), -(input.pos.y - bullet.pos.y)).normalize().mul(6).add(bullet.pos);
+      // line(bullet.pos, endPoint,1);
+      line(bullet.pos, endPoint, 1);
+    }
+
+    if (input.isJustReleased && readyForLaunch) {
+      let bulletToInputVector = vec(-input.pos.x + bullet.pos.x, -input.pos.y + bullet.pos.y).normalize().mul(G.MAX_BALL_VELOCITY);
+      bullet.velocity.add(bulletToInputVector);
+      readyForLaunch = false;
+      bullet.state = STATE.FREE;
+    }
+  }
+
   // copy the bullet velocity in case it has to be changed in the case of a collision
   let newVelocity = vec(bullet.velocity);
   let closestCollision;
   // check for a collision with any of the lines
   for(let i = 0; i < currentLevel.length; i++){
     // get current line
-    // let l = lines[i];
     let l = currentLevel[i];
 
     // check for collision
@@ -155,12 +179,11 @@ function update() {
     );
     
     // if there is a collision
-    if ( collision.collided && collision.intX != bullet.pos.x && collision.intY != bullet.pos.y) {
-      // if there is no closest collision, this is the closest collision
-      if (!closestCollision) closestCollision = collision;
-      
-      // if this collision is nearer than the previous closest collision, it is now the closest collision
-      if (closestCollision && vec(collision.intX, collision.intY).distanceTo(bullet.pos) <= vec(closestCollision.intX, closestCollision.intY).distanceTo(bullet.pos)) {
+    if ( collision.collided && (collision.intX != bullet.pos.x || collision.intY != bullet.pos.y)) {
+      if (!closestCollision || vec(collision.intX, collision.intY).distanceTo(bullet.pos) <= vec(closestCollision.intX, closestCollision.intY).distanceTo(bullet.pos)) {
+        // set closest collision
+        closestCollision = collision;
+
         // set the new velocity to something that takes will bring the bullet to the collision point
         newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
   
@@ -170,15 +193,12 @@ function update() {
         } else if (l.p1.y == l.p2.y) { // horizontal line
           bullet.velocity.y *= -1;
         }
-        
-        // set closest collision
-        closestCollision = collision;
       }
     }
   };
 
   // add the velocity to the bullet position
-  bullet.pos.add(newVelocity);
+  if (bullet.state == STATE.FREE) bullet.pos.add(newVelocity);
 
   //draw the trail
   color("yellow");
@@ -196,12 +216,13 @@ function update() {
     //setup next level here
     //levelIndex++;
   }
+
+  line(bullet.pos, bullet.nextPos, 3);
   if (closestCollision){
     particle(closestCollision.intX, closestCollision.intY, 10, 1);
   }
   
 }
-
 
 function levelLine(x1, y1, x2, y2) {
   return {
@@ -267,6 +288,59 @@ function PointRectDistance(x, y, rx, ry, rw, rh) {
   let dx = Math.max(rx - x, 0, x - rx + rw);
   let dy = Math.max(ry - y, 0, y - ry + rh);
   return Math.sqrt(dx*dx + dy*dy);
+}
+
+function onSegment(p, q, r) {
+  if (q.x <= Math.max(p.x, r.x) && q.x >= Math.min(p.x, r.x) && q.y <= Math.max(p.y, r.y) && q.y >= Math.min(p.y, r.y)) return true;
+   
+    return false;
+}
+
+function checkOrientation(p, q, r) {
+  let val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+   
+  if (val == 0) return 0; // collinear
+  
+  return (val > 0)? 1: 2; // clock or counterclock wise
+}
+
+function doIntersect(p1, q1, p2, q2)
+{
+ 
+  // Find the four orientations needed for general and
+  // special cases
+  let o1 = checkOrientation(p1, q1, p2);
+  let o2 = checkOrientation(p1, q1, q2);
+  let o3 = checkOrientation(p2, q2, p1);
+  let o4 = checkOrientation(p2, q2, q1);
+  
+  // General case
+  if (o1 != o2 && o3 != o4)
+      return true;
+  
+  // Special Cases
+  // p1, q1 and p2 are collinear and p2 lies on segment p1q1
+  if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+  
+  // p1, q1 and q2 are collinear and q2 lies on segment p1q1
+  if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+  
+  // p2, q2 and p1 are collinear and p1 lies on segment p2q2
+  if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+  
+  // p2, q2 and q1 are collinear and q1 lies on segment p2q2
+  if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+  
+  return false; // Doesn't fall in any of the above cases
+}
+
+function getIntersection(p1, q1, p2, q2) {
+  let d = (p1.x - q1.x) * (p2.y - q2.y) - (p1.y - q1.y) * (p2.x - q2.x);
+
+  let x = (p1.x * q1.y - p1.y * q1.x) * (p2.x - q2.x) - (p1.x - q1.x) * (p2.x * q2.y - p1.y * q2.x);
+  let y = (p1.x * q1.y - p1.y * q1.x) * (p2.y - q2.y) - (p1.y - q1.y) * (p2.x * q2.y - p1.y * q2.x);
+
+  return vec(x/d, y/d);
 }
 
 function LineLine(x1, y1, x2, y2, x3, y3, x4, y4){
