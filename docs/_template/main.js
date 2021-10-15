@@ -23,6 +23,9 @@ options = {
   isPlayingBgm: true
 };
 
+let bulletStartPos;
+let goalPos;
+
 let lvl1 = 
 `
 000V00HHHH
@@ -36,6 +39,35 @@ VVVV00VV00
 0G0V00V00V
 0V0VHHHHHV
 `;
+
+let lvl2 =
+`
+000000XXXX
+000000XXXX
+XXX000000X
+XXXX000000
+X00XXXX000
+X000000000
+XXXX00XX00
+000000X000
+000X00X00X
+000X0000XX
+`
+
+const levels = [
+`
+000000XXXX
+000000XXXX
+XXX000000X
+XXXX000000
+X00XXXX000
+X000000000
+XXXX00XX00
+000000X000
+0S0X00X00X
+000X0000XX
+`
+]
 
 /**
  * @typedef {{
@@ -58,6 +90,8 @@ let bullet;
 /** @type { Line[] } */
 let lines;
 
+let currentLevel;
+
 // H = horizontal wall
 // V = vertical wall
 // 0 = nothing
@@ -69,7 +103,7 @@ let goal;
   //so always levelsize + 1
 //start at 1 to ignore first newline character
 function interpretLevel(input) {
-  var currPos = vec(0,0);
+  let currPos = vec(0,0);
   createOutline();
   for (let i = 1; i < (G.LEVELSIZE * G.LEVELSIZE) + G.LEVELSIZE; i++) {
     switch (input[i]) {
@@ -106,6 +140,52 @@ function interpretLevel(input) {
   }
 }
 
+function levelLine(x1, y1, x2, y2) {
+  return {
+    p1: vec(x1, y1),
+    p2: vec(x2, y2)
+  }
+}
+
+function constructLevel(levelString) {
+  let levelToReturn = [];
+  levelString = levelString.trim();
+
+  let currentX = 0;
+  let currentY = 0;
+  for(let i = 0; i < levelString.length; i++){
+    let character = levelString[i];
+    switch(character) {
+      case "0":
+        currentX++;
+      break;
+      case "X":
+        levelToReturn.push(
+          levelLine(currentX * 20, currentY * 20, (currentX + 1) * 20, currentY * 20),
+          levelLine((currentX + 1) * 20, currentY * 20, (currentX + 1) * 20, (currentY + 1) * 20),
+          levelLine(currentX * 20, (currentY + 1) * 20, (currentX + 1) * 20, (currentY + 1) * 20),
+          levelLine(currentX * 20, currentY * 20, currentX * 20, (currentY + 1) * 20),
+        )
+        currentX++;
+      break;
+      case "S":
+          bulletStartPos = vec((currentX + 0.5) * 20, (currentY + 0.5) * 20);
+          currentX++;
+      break;
+      case "G":
+          goalPos = vec((currentX + 0.5) * 20, (currentY + 0.5) * 20);
+          currentX++;
+      break;
+      case "\n":
+        // go to the next line
+        currentX = 0;
+        currentY ++;
+      break;
+    }
+  };
+
+  return levelToReturn;
+}
 
 //talk with finn if this should go in with lines
   //also talk with finn on whether or not there should be an outline (seems good to have as a baseline for each level)
@@ -132,19 +212,29 @@ function createOutline() {
   });
 }
 
-let currentLevel;
+function createBorder(level) {
+  level.push(
+    levelLine(0,0,200,0),
+    levelLine(200,0,200,200),
+    levelLine(0,0,0,200),
+    levelLine(0,200,200,200)
+  )
+}
 
 function update() {
   if (!ticks) {
 
-    lines = [];
-    interpretLevel(lvl1);
+    // lines = [];
+    // interpretLevel(lvl1);
 
-    createOutline();
+    // createOutline();
+
+    currentLevel = constructLevel(levels[0]);
+    createBorder(currentLevel);
 
     bullet = {
-      pos: vec(20, 20),
-      velocity: vec(1,0.8),
+      pos: vec(bulletStartPos.x, bulletStartPos.y),
+      velocity: vec(1,0.5),
       get nextPos() {
         return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
       }
@@ -153,46 +243,48 @@ function update() {
 
   // draw the level
   color("blue");
-  // currentLevel.forEach(l => {
-  //   line(l.p1.x * 20, l.p1.y * 20, l.p2.x * 20, l.p2.y * 20, 2);
+  // lines.forEach(l => {
+  //   line(l.start, l.end, 2);
   // });
-
-  lines.forEach(l => {
-    line(l.start, l.end, 2);
+  currentLevel.forEach(l => {
+    line(l.p1, l.p2, 2);
   });
-
-  color("red");
-  rect(goal, 10);
 
   // copy the bullet velocity in case it has to be changed in the case of a collision
   let newVelocity = vec(bullet.velocity);
+  let closestCollision;
   // check for a collision with any of the lines
-  for(let i = 0; i < lines.length; i++){
+  for(let i = 0; i < currentLevel.length; i++){
     // get current line
-    let l = lines[i];
+    // let l = lines[i];
+    let l = currentLevel[i];
 
     // check for collision
     let collision = LineLine(
       bullet.pos.x, bullet.pos.y, bullet.nextPos.x, bullet.nextPos.y,
-      l.start.x,    l.start.y,    l.end.x,          l.end.y
+      l.p1.x,       l.p1.y,       l.p2.x,           l.p2.y
     );
     
     // if there is a collision
-    if (collision.collided) {
-      // TODO: Make sure that if there are multiple collisions on the same frame, pick the closest one
+    if ( collision.collided && collision.intX != bullet.pos.x && collision.intY != bullet.pos.y) {
+      // if there is no closest collision, this is the closest collision
+      if (!closestCollision) closestCollision = collision;
       
-      // set the new velocity to something that takes will bring the ball to the collision point
-      newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
-
-      // flip velocity based on line type
-      if (l.start.x == l.end.x) { // vertical line
-        bullet.velocity.x *= -1;
-      } else if (l.start.y == l.end.y) { // horizontal line
-        bullet.velocity.y *= -1;
+      // if this collision is nearer than the previous closest collision, it is now the closest collision
+      if (closestCollision && vec(collision.intX, collision.intY).distanceTo(bullet.pos) <= vec(closestCollision.intX, closestCollision.intY).distanceTo(bullet.pos)) {
+        // set the new velocity to something that takes will bring the bullet to the collision point
+        newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
+  
+        // flip velocity based on line type
+        if (l.p1.x == l.p2.x) { // vertical line
+          bullet.velocity.x *= -1;
+        } else if (l.p1.y == l.p2.y) { // horizontal line
+          bullet.velocity.y *= -1;
+        }
+        
+        // set closest collision
+        closestCollision = collision;
       }
-
-      // break when collison is found. This could cause problems with collisions near corners
-      break;
     }
   };
 
@@ -202,10 +294,16 @@ function update() {
   // draw the bullet
   color("yellow");
   line(bullet.pos, bullet.pos, 3);
+  if (closestCollision){
+    particle(closestCollision.intX, closestCollision.intY, 10, 1);
+  }
 
   // draw the line from the bullet's position to the bullet's next position (not accurate on collision frames)
   color("green");
   line(bullet.pos, bullet.nextPos, 1);
+
+  color("red");
+  rect(goalPos, 10);
 }
 
 function HitBall() {
@@ -224,7 +322,7 @@ function LineLine(x1, y1, x2, y2, x3, y3, x4, y4){
   let uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
 
   // if uA and uB are between 0-1, lines are colliding
-  if (uA > 0 && uA <= 1 && uB > 0 && uB <= 1) {
+  if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
     return {
       collided: true,
       intX: x1 + (uA * (x2-x1)),
