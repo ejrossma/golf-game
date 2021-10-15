@@ -1,6 +1,13 @@
-title = "GOLF BABY";
+title = "Shooting Stars";
 
 description = `
+      DIRECT YOUR STAR 
+
+   TO THE GLOWING PORTALS
+
+
+
+PULL BACK & RELEASE TO START
 `;
 
 characters = [];
@@ -26,46 +33,69 @@ options = {
 let bulletStartPos;
 let goalPos;
 
-let lvl1 = 
-`
-000V00HHHH
-0S0000HHHH
-HHH000000V
-VVVV000000
-V00VVVV000
-V000000000
-VVVV00VV00
-000000V000
-0G0V00V00V
-0V0VHHHHHV
-`;
 
-let lvl2 =
-`
-000000XXXX
-000000XXXX
-XXX000000X
-XXXX000000
-X00XXXX000
-X000000000
-XXXX00XX00
-000000X000
-000X00X00X
-000X0000XX
-`
+/* Level Concepts
+  Rules Level - Have to intentionally miss to not get in 0 bounces
+  Intro Level - Very Easy (Able to Get it in 1 Bounce)
+  Risk Taking Level - Force Player to Choose One of Two Directions (One Easy, but more bounces)
+  Satisfying Level - Symmetrical & need to follow pattern of map to get a satisfying win no matter which direction you choose
+*/
 
+/* Level Plan
+  Level 1 - Freebie to teach them the game
+  Level 2 - Able to get in 1 bounce if you are a gamer, but easy in 2-4 bounces
+  Level 3 - One simple path, One shortcut path. Possible to lose if its your first or 2nd time playing
+  Level 4 - Medium difficulty with even possibility of losing/success
+  Level 5 - Hard Maze-like level with very few solutions
+*/
 const levels = [
 `
-000000XXXX
-000000XXXX
-XXX000000X
-XXXX000000
-X00XXXX000
+0000000000
+0000000000
+0000000000
+0000000G00
+0000000000
+0S00000000
+0000000000
+0000000000
+0000000000
+0000000000
+`,
+`
+0000000000
+0S00000000
+0000000000
+XXXXX00000
+000X000000
+000X000000
+000X000G00
+000X000000
+0000XXXXXX
+0000000000
+`,
+`
+0X0X0X0X0X
+XS00000000
 X000000000
-XXXX00XX00
+X00XXXX0XX
+X00X00000X
+X00X00X00X
+X00X00X00X
+X00000X00X
+X00000X0GX
+XXXXXXXXXX
+`,
+`
+000X00X000
+0S00X0X000
+X0X0X0X000
 000000X000
-0S0X00X00X
-000X0000XX
+XXX000X000
+000000X00X
+XXXXXXX00X
+000000000X
+00000000GX
+XXXXXXXXXX
 `
 ]
 
@@ -80,65 +110,98 @@ XXXX00XX00
 /** @type { Bullet } */
 let bullet;
 
-/**
- * @typedef {{
- * start: Vector,
- * end: Vector
- * }} Line
- */
-
-/** @type { Line[] } */
-let lines;
+let levelIndex;
 
 let currentLevel;
 
-// H = horizontal wall
-// V = vertical wall
-// 0 = nothing
-// S = start
-// G = goal
-let goal;
+function update() {
+  if (!ticks) {
 
-//newline character is counted
-  //so always levelsize + 1
-//start at 1 to ignore first newline character
-function interpretLevel(input) {
-  let currPos = vec(0,0);
-  createOutline();
-  for (let i = 1; i < (G.LEVELSIZE * G.LEVELSIZE) + G.LEVELSIZE; i++) {
-    switch (input[i]) {
-      case 'H':
-        lines.push({
-          start: vec(currPos.x, currPos.y),
-          end: vec(currPos.x + 20, currPos.y)
-        });
-        break;
-      case 'V':
-        lines.push({
-          start: vec(currPos.x + 20, currPos.y),
-          end: vec(currPos.x + 20, currPos.y + 20)
-        });
-        break;
-      case 'S':
-        //this is where the player spawns
-        //still have to code this
-        break;
-      case 'G':
-        color("yellow");
-        goal = vec(currPos);
-        break;
-      case '\n':
-        currPos.x = 0;
-        currPos.y += 20;
-        break;
-      default:
-        break;
+    levelIndex = 2;
+
+    currentLevel = constructLevel(levels[levelIndex]);
+    createBorder(currentLevel);
+
+    bullet = {
+      pos: vec(bulletStartPos.x, bulletStartPos.y),
+      velocity: vec(1,0.5),
+      get nextPos() {
+        return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
+      }
     }
-    //prepare for next character
-    if (input[i] != '\n') 
-      currPos.x += 20;
   }
+
+  if (levelIndex == 0) text("AIM FOR THIS ->", 55, 75);
+
+  // draw the level
+  color("blue");
+  currentLevel.forEach(l => {
+    line(l.p1, l.p2, 2);
+  });
+
+  // copy the bullet velocity in case it has to be changed in the case of a collision
+  let newVelocity = vec(bullet.velocity);
+  let closestCollision;
+  // check for a collision with any of the lines
+  for(let i = 0; i < currentLevel.length; i++){
+    // get current line
+    // let l = lines[i];
+    let l = currentLevel[i];
+
+    // check for collision
+    let collision = LineLine(
+      bullet.pos.x, bullet.pos.y, bullet.nextPos.x, bullet.nextPos.y,
+      l.p1.x,       l.p1.y,       l.p2.x,           l.p2.y
+    );
+    
+    // if there is a collision
+    if ( collision.collided && collision.intX != bullet.pos.x && collision.intY != bullet.pos.y) {
+      // if there is no closest collision, this is the closest collision
+      if (!closestCollision) closestCollision = collision;
+      
+      // if this collision is nearer than the previous closest collision, it is now the closest collision
+      if (closestCollision && vec(collision.intX, collision.intY).distanceTo(bullet.pos) <= vec(closestCollision.intX, closestCollision.intY).distanceTo(bullet.pos)) {
+        // set the new velocity to something that takes will bring the bullet to the collision point
+        newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
+  
+        // flip velocity based on line type
+        if (l.p1.x == l.p2.x) { // vertical line
+          bullet.velocity.x *= -1;
+        } else if (l.p1.y == l.p2.y) { // horizontal line
+          bullet.velocity.y *= -1;
+        }
+        
+        // set closest collision
+        closestCollision = collision;
+      }
+    }
+  };
+
+  // add the velocity to the bullet position
+  bullet.pos.add(newVelocity);
+
+  //draw the trail
+  color("yellow");
+  particle(bullet.pos.x - newVelocity.x, bullet.pos.y - newVelocity.y, 5);
+
+  //draw the goal
+  color("red");
+  rect(goalPos.x - 2, goalPos.y - 2, 10);
+
+  // draw the bullet
+  color("yellow");
+  const beatLevel = line(bullet.pos, bullet.pos, 3).isColliding.rect.red;
+  if (beatLevel) {
+    console.log("Level Beaten");
+    //setup next level here
+    //levelIndex++;
+  }
+  if (closestCollision){
+    particle(closestCollision.intX, closestCollision.intY, 10, 1);
+  }
+  
 }
+
 
 function levelLine(x1, y1, x2, y2) {
   return {
@@ -187,31 +250,6 @@ function constructLevel(levelString) {
   return levelToReturn;
 }
 
-//talk with finn if this should go in with lines
-  //also talk with finn on whether or not there should be an outline (seems good to have as a baseline for each level)
-function createOutline() {
-  //top
-  lines.push({
-    start: vec(0, 0),
-    end: vec(200, 0)
-  });
-  //right
-  lines.push({
-    start: vec(200, 0),
-    end: vec(200, 200)
-  });
-  //left
-  lines.push({
-    start: vec(0, 0),
-    end: vec(0, 200)
-  });
-  //bottom
-  lines.push({
-    start: vec(0, 200),
-    end: vec(200, 200)
-  });
-}
-
 function createBorder(level) {
   level.push(
     levelLine(0,0,200,0),
@@ -219,91 +257,6 @@ function createBorder(level) {
     levelLine(0,0,0,200),
     levelLine(0,200,200,200)
   )
-}
-
-function update() {
-  if (!ticks) {
-
-    // lines = [];
-    // interpretLevel(lvl1);
-
-    // createOutline();
-
-    currentLevel = constructLevel(levels[0]);
-    createBorder(currentLevel);
-
-    bullet = {
-      pos: vec(bulletStartPos.x, bulletStartPos.y),
-      velocity: vec(1,0.5),
-      get nextPos() {
-        return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
-      }
-    }
-  }
-
-  // draw the level
-  color("blue");
-  // lines.forEach(l => {
-  //   line(l.start, l.end, 2);
-  // });
-  currentLevel.forEach(l => {
-    line(l.p1, l.p2, 2);
-  });
-
-  // copy the bullet velocity in case it has to be changed in the case of a collision
-  let newVelocity = vec(bullet.velocity);
-  let closestCollision;
-  // check for a collision with any of the lines
-  for(let i = 0; i < currentLevel.length; i++){
-    // get current line
-    // let l = lines[i];
-    let l = currentLevel[i];
-
-    // check for collision
-    let collision = LineLine(
-      bullet.pos.x, bullet.pos.y, bullet.nextPos.x, bullet.nextPos.y,
-      l.p1.x,       l.p1.y,       l.p2.x,           l.p2.y
-    );
-    
-    // if there is a collision
-    if ( collision.collided && collision.intX != bullet.pos.x && collision.intY != bullet.pos.y) {
-      // if there is no closest collision, this is the closest collision
-      if (!closestCollision) closestCollision = collision;
-      
-      // if this collision is nearer than the previous closest collision, it is now the closest collision
-      if (closestCollision && vec(collision.intX, collision.intY).distanceTo(bullet.pos) <= vec(closestCollision.intX, closestCollision.intY).distanceTo(bullet.pos)) {
-        // set the new velocity to something that takes will bring the bullet to the collision point
-        newVelocity = vec(collision.intX - bullet.pos.x, collision.intY - bullet.pos.y);
-  
-        // flip velocity based on line type
-        if (l.p1.x == l.p2.x) { // vertical line
-          bullet.velocity.x *= -1;
-        } else if (l.p1.y == l.p2.y) { // horizontal line
-          bullet.velocity.y *= -1;
-        }
-        
-        // set closest collision
-        closestCollision = collision;
-      }
-    }
-  };
-
-  // add the velocity to the bullet position
-  bullet.pos.add(newVelocity);
-
-  // draw the bullet
-  color("yellow");
-  line(bullet.pos, bullet.pos, 3);
-  if (closestCollision){
-    particle(closestCollision.intX, closestCollision.intY, 10, 1);
-  }
-
-  // draw the line from the bullet's position to the bullet's next position (not accurate on collision frames)
-  color("green");
-  line(bullet.pos, bullet.nextPos, 1);
-
-  color("red");
-  rect(goalPos, 10);
 }
 
 function HitBall() {
