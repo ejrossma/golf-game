@@ -23,7 +23,8 @@ options = {
   viewSize: {x: G.WIDTH, y: G.HEIGHT},
   theme: "shapeDark",
   isPlayingBgm: true,
-  isReplayEnabled: true
+  isReplayEnabled: true,
+  seed: 6969,
 };
 
 let bulletStartPos;
@@ -164,6 +165,7 @@ function update() {
       let bulletToInputVector = vec(-input.pos.x + bullet.pos.x, -input.pos.y + bullet.pos.y).normalize().mul(G.MAX_BALL_VELOCITY);
       bullet.velocity.add(bulletToInputVector);
       readyForLaunch = false;
+      play("explosion");
       bullet.state = STATE.FREE;
     }
   }
@@ -218,6 +220,7 @@ function update() {
   if (beatLevel) {
     console.log("Level Beaten");
     if (levelIndex < 4) {
+      play("powerUp");
       nextLevel();
     } else {
       end("CONGRATULATIONS YOU WIN!!");
@@ -226,6 +229,7 @@ function update() {
 
   if (closestCollision){
     particle(closestCollision.intX, closestCollision.intY, 10, 1);
+    play("hit");
     addScore(-25);
   }
 
