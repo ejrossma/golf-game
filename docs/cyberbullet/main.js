@@ -206,7 +206,7 @@ function update() {
 
   //draw the trail
   color("yellow");
-  particle(bullet.pos.x - newVelocity.x, bullet.pos.y - newVelocity.y, 5);
+  if (bullet.state == STATE.FREE) particle(bullet.pos.x - newVelocity.x, bullet.pos.y - newVelocity.y, 3);
 
   //draw the goal
   color("red");
@@ -214,10 +214,10 @@ function update() {
 
   // draw the bullet
   color("yellow");
-  const beatLevel = line(bullet.pos, bullet.pos, 3).isColliding.rect.red;
+  const beatLevel = line(bullet.pos, bullet.nextPos, 3).isColliding.rect.red;
   if (beatLevel) {
     console.log("Level Beaten");
-    if (levelIndex != 4) {
+    if (levelIndex < 4) {
       nextLevel();
     } else {
       end("CONGRATULATIONS YOU WIN!!");
