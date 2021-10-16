@@ -1,7 +1,7 @@
 title = "CyberBullet";
 
 description = `
-[Click/Hold]
+    [Click/Hold]
 Pull back on bullet!
 `;
 
@@ -22,7 +22,8 @@ const G = {
 options = {
   viewSize: {x: G.WIDTH, y: G.HEIGHT},
   theme: "shapeDark",
-  isPlayingBgm: true
+  isPlayingBgm: true,
+  isReplayEnabled: true
 };
 
 let bulletStartPos;
@@ -40,7 +41,6 @@ let goalPos;
   Level 2 - Able to get in 1 bounce if you are a gamer, but easy in 2-4 bounces
   Level 3 - One simple path, One shortcut path. Possible to lose if its your first or 2nd time playing
   Level 4 - Medium difficulty with even possibility of losing/success
-  Level 5 - Hard Maze-like level with very few solutions
 */
 const levels = [
 `
@@ -49,7 +49,7 @@ const levels = [
 0000000000
 0000000G00
 0000000000
-0S00000000
+00S0000000
 0000000000
 0000000000
 0000000000
@@ -64,29 +64,29 @@ XXXXX00000
 000X000000
 000X000G00
 000X000000
-0000XXXXXX
+0X00XXXXXX
 0000000000
 `,
 `
-0X0X0X0X0X
-XS00000000
-X000000000
-X00XXXX0XX
+000X0X0X0X
+0S00000000
+0000000000
+X00XXXXX0X
+000X00000X
 X00X00000X
-X00X00X00X
-X00X00X00X
-X00000X00X
-X00000X0GX
+000X0XXX0X
+X0000X0X0X
+00000X0XGX
 XXXXXXXXXX
 `,
 `
 000X00X000
-0S00X0X000
+0S00X0X0X0
 X0X0X0X000
-000000X000
-XXX000X000
+000000X0X0
+XXX0000000
 000000X00X
-XXXXXXX00X
+XXXX0XX00X
 000000000X
 00000000GX
 XXXXXXXXXX
@@ -116,11 +116,14 @@ let currentLevel;
 
 let readyForLaunch;
 
+let levelScore;
+
 function update() {
   if (!ticks) {
 
-    levelIndex = 2;
+    levelIndex = 0;
     readyForLaunch = false;
+    levelScore = 1000;
 
     currentLevel = constructLevel(levels[levelIndex]);
     createBorder(currentLevel);
@@ -135,7 +138,8 @@ function update() {
     }
   }
 
-  if (levelIndex == 0) text("AIM FOR THIS ->", 55, 75);
+  color("yellow");
+  if (levelIndex == 0) text("AIM FOR THIS ->", 55, 73);
 
   // draw the level
   color("blue");
@@ -150,7 +154,7 @@ function update() {
     }
 
     if (input.isPressed && !input.pos.equals(bullet.pos) && readyForLaunch) {
-      color("red");
+      color("black");
       let endPoint = vec(-(input.pos.x - bullet.pos.x), -(input.pos.y - bullet.pos.y)).normalize().mul(6).add(bullet.pos);
       // line(bullet.pos, endPoint,1);
       line(bullet.pos, endPoint, 1);
@@ -213,15 +217,64 @@ function update() {
   const beatLevel = line(bullet.pos, bullet.pos, 3).isColliding.rect.red;
   if (beatLevel) {
     console.log("Level Beaten");
-    //setup next level here
-    //levelIndex++;
+    if (levelIndex != 4) {
+      nextLevel();
+    } else {
+      end("CONGRATULATIONS YOU WIN!!");
+    }
   }
 
-  line(bullet.pos, bullet.nextPos, 3);
   if (closestCollision){
     particle(closestCollision.intX, closestCollision.intY, 10, 1);
+    addScore(-25);
   }
-  
+
+  //make reset button
+  if (bullet.state == STATE.FREE) {
+    color("green");
+    rect(80, 5, 40, 10);
+    color("white");
+    text("RESET", vec(88, 9));
+
+    //check if player is clicking reset button
+    color("transparent");
+    let inputCollider = rect(input.pos, 1);
+    const isClickingButton = inputCollider.isColliding.rect.green;
+    if (input.isJustPressed && isClickingButton) {
+      console.log("Reset Level");
+      reset();
+    }
+  }
+}
+
+function reset() {
+  addScore(-50);
+  //same level
+    //reset ball position & get ready to launch & change state to waiting
+  bullet = {
+    pos: vec(bulletStartPos.x, bulletStartPos.y),
+    velocity: vec(0,0),
+    state: STATE.WAITING,
+    get nextPos() {
+      return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
+    }
+  }
+}
+
+function nextLevel() {
+  addScore(levelScore);
+  levelScore = 1000 + 1000 * levelIndex;
+  levelIndex++;
+  currentLevel = constructLevel(levels[levelIndex]);
+  createBorder(currentLevel);
+  bullet = {
+    pos: vec(bulletStartPos.x, bulletStartPos.y),
+    velocity: vec(0,0),
+    state: STATE.WAITING,
+    get nextPos() {
+      return vec(this.pos.x + this.velocity.x, this.pos.y + this.velocity.y);
+    }
+  }
 }
 
 function levelLine(x1, y1, x2, y2) {
